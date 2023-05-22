@@ -36,6 +36,8 @@ struct gpt_params {
     bool interactive = true; // interactive mode
     bool interactive_start = true; // reverse prompt immediately
     std::string antiprompt = ""; // string upon seeing which more user input is prompted
+    std::string open_socket = ""; // Socket to read input from and write output to.
+    bool use_socket = false;
 };
 
 bool gpt_params_parse(int argc, char ** argv, gpt_params & params);

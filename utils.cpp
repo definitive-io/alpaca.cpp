@@ -61,6 +61,9 @@ bool gpt_params_parse(int argc, char ** argv, gpt_params & params) {
             params.model = argv[++i];
         } else if (arg == "-i" || arg == "--interactive") {
             params.interactive = true;
+        } else if (arg == "-o" || arg == "--open-socket") { 
+            params.open_socket = argv[++i];
+            params.use_socket = true;
         } else if (arg == "--interactive-start") {
             params.interactive = true;
             params.interactive_start = true;
@@ -96,6 +99,8 @@ void gpt_print_usage(int argc, char ** argv, const gpt_params & params) {
     fprintf(stderr, "  -p PROMPT, --prompt PROMPT\n");
     fprintf(stderr, "                        prompt to start generation with (default: random)\n");
     fprintf(stderr, "  -f FNAME, --file FNAME\n");
+    fprintf(stderr, "  -o SOCKET, --open-socket SOCKET\n");
+    fprintf(stderr, "                        Read input and write output to socket. Uses stdin/stdout by default.\n");
     fprintf(stderr, "                        prompt file to start generation.\n");
     fprintf(stderr, "  -n N, --n_predict N   number of tokens to predict (default: %d)\n", params.n_predict);
     fprintf(stderr, "  --top_k N             top-k sampling (default: %d)\n", params.top_k);
