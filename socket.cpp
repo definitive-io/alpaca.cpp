@@ -15,15 +15,22 @@ ClientConnection::ClientConnection(const int listenSockfd) : listenSockfd(listen
         fprintf(stderr, "Failed to create client socket connection.");
         exit(EXIT_FAILURE);
     }
+
+    // Parse client IP address
     struct sockaddr_in* pV4Addr = (struct sockaddr_in*)&clientAddress;
 	struct in_addr ipAddr = pV4Addr->sin_addr;
-	char str[INET_ADDRSTRLEN];
-	inet_ntop(AF_INET, &ipAddr, str, INET_ADDRSTRLEN);
-	printf("Client connection from IP: %s\n", str);
+	char clientIp[INET_ADDRSTRLEN];
+	inet_ntop(AF_INET, &ipAddr, clientIp, INET_ADDRSTRLEN);
+	printf("Client connection from IP: %s\n", clientIp);
+    this->clientIp = std::string(clientIp);
 }
 
 ClientConnection::~ClientConnection() {
     close(clientSockfd);
+}
+
+std::string ClientConnection::getClientIp() {
+    return clientIp;
 }
 
 ssize_t ClientConnection::getRequest(char * buffer, size_t bufferSize) {

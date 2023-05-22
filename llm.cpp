@@ -796,6 +796,8 @@ static bool model_loaded = false;
 
 int run_llm(int argc, char ** argv, gpt_params params) {
     ggml_time_init();
+
+    // Initialize pointers
     std::unique_ptr<Socket> socketPtr(nullptr);
     std::unique_ptr<ClientConnection> clientConnectionPtr(nullptr);
     const int64_t t_main_start_us = ggml_time_us();
@@ -807,12 +809,6 @@ int run_llm(int argc, char ** argv, gpt_params params) {
     fprintf(stderr, "%s: seed = %d\n", __func__, params.seed);
 
     std::mt19937 rng(params.seed);
-    // if (params.prompt.empty()) {
-    //     params.prompt = gpt_random_prompt(rng);
-    // }
-
-//    params.prompt = R"(// this function checks if the number n is prime
-//bool is_prime(int n) {)";
 
     int64_t t_load_us = 0;
 
@@ -867,6 +863,7 @@ int run_llm(int argc, char ** argv, gpt_params params) {
         embd_inp.insert(embd_inp.end(), response_inp.begin(), response_inp.end());
     }
 
+    // This is useful for debugging, so leaving this here for now.  Uncomment as needed.
     // fprintf(stderr, "\n");
     // fprintf(stderr, "%s: prompt: '%s'\n", __func__, params.prompt.c_str());
     // fprintf(stderr, "%s: number of tokens in prompt = %zu\n", __func__, embd_inp.size());
@@ -876,7 +873,7 @@ int run_llm(int argc, char ** argv, gpt_params params) {
     // fprintf(stderr, "\n");
 
     if (params.use_socket) {
-        printf("Using socket: %d\n", stoi(params.open_socket));
+        printf("Listening for prompts on port %d\n", stoi(params.open_socket));
         socketPtr = make_unique<Socket>("127.0.0.1", stoi(params.open_socket));
     }
 
@@ -947,6 +944,8 @@ int run_llm(int argc, char ** argv, gpt_params params) {
         printf(ANSI_COLOR_YELLOW);
     }
 
+    // Allocate a decently large response buffer.  Leaving this hard-coded for now, since this should be reasonably
+    // large enough to support 99.999% of use cases (author's estimate).
     char response_buf[10 * 1024] = {0};
     size_t n_written = 0;
     while (remaining_tokens > 0) {
@@ -1013,7 +1012,9 @@ int run_llm(int argc, char ** argv, gpt_params params) {
                 printf(ANSI_COLOR_RESET);
             }
         }
-    
+        // If using a socket, and there is an actively connected client awaiting prompt response, begin copying the tokens
+        // into the response buffer, one at a time.  Note that this code executes multiple times within the context of the
+        // while loop above, therefore we don't send the response and close the client connection until later.
         if (params.use_socket && clientConnectionPtr) {
             for (auto id : embd) {
                 std::string response_token = vocab.id_to_token[id];
@@ -1022,7 +1023,6 @@ int run_llm(int argc, char ** argv, gpt_params params) {
             }
         } else if (!input_noecho) {
             for (auto id : embd) {
-                printf("TOKEN: ");
                 printf("%s", vocab.id_to_token[id].c_str());
             }
             fflush(stdout);
@@ -1039,9 +1039,11 @@ int run_llm(int argc, char ** argv, gpt_params params) {
                     printf("\n> ");
                 }
 
+                // If using a socket, perform a blocking accept and wait for the next request.  When received, tokenize the input for
+                // processing by the llm later.
                 if (params.use_socket) {
                     clientConnectionPtr = std::unique_ptr<ClientConnection>(socketPtr->getNextRequest());
-                    fprintf(stderr, "Received new request.\n");
+                    fprintf(stderr, "Received new prompt from client %s", clientConnectionPtr->getClientIp().c_str());
                     char buf[10 * 1024] = {0};
                     ssize_t n_read;
                     n_read = clientConnectionPtr->getRequest(buf, sizeof(buf));
@@ -1089,15 +1091,21 @@ int run_llm(int argc, char ** argv, gpt_params params) {
             }
         }
 
-        // end of text token
         if (embd.back() == 2) {
             if (params.interactive) {
                 if (clientConnectionPtr) {
+                    // Add null delimiter to end of response buffer
                     response_buf[n_written] = '\0';
                     n_written++;
+
+                    // Send response to client
                     clientConnectionPtr->sendResponse(response_buf, n_written);
+
+                    // Initialize state and prepare for next client request
                     n_written = 0;
                     memset(response_buf, 0, sizeof(response_buf));
+
+                    // Destroy the object managed by this pointer, thereby closing the client connection.
                     clientConnectionPtr.release();
                 }
                 is_interacting = true;

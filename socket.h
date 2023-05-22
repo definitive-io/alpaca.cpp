@@ -10,9 +10,11 @@ class ClientConnection {
         ~ClientConnection();
         ssize_t getRequest(char * buffer, size_t bufferSize);
         ssize_t sendResponse(char * buffer, size_t bufferSize);
+        std::string getClientIp();
 
     private:
         const int listenSockfd;
+        std::string clientIp;
         int clientSockfd;
 };
 
